@@ -2,6 +2,7 @@ package com.github.labibmuhajir.myapplication.ui.artisan
 
 import android.os.Bundle
 import android.view.*
+import androidx.annotation.CheckResult
 import androidx.appcompat.widget.SearchView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -10,10 +11,10 @@ import com.github.labibmuhajir.myapplication.common.snackbar
 import com.github.labibmuhajir.myapplication.data.model.ViewState
 import com.github.labibmuhajir.myapplication.databinding.FragmentArtisanBinding
 import com.github.labibmuhajir.myapplication.ui.artisandetail.ArtisanDetailActivity
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -51,23 +52,33 @@ class ArtisanFragment : Fragment() {
         inflater.inflate(R.menu.menu_toolbar, menu)
         menu.findItem(R.id.action_search)?.let { searchItem ->
             val searchView = searchItem.actionView as SearchView
-            searchView.setOnQueryTextListener(object : android.widget.SearchView.OnQueryTextListener,
+            searchView.search()
+                .distinctUntilChanged()
+                .debounce(200)
+                .onEach { viewModel.search(it) }
+                .launchIn(lifecycleScope)
+        }
+    }
+
+    @ExperimentalCoroutinesApi
+    @CheckResult
+    private fun SearchView.search(): Flow<String?> {
+        return callbackFlow {
+            val listener = object : android.widget.SearchView.OnQueryTextListener,
                 SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(p0: String?): Boolean {
-                    viewModel.search(p0)
-                    return false
+                    offer(p0)
+                    return true
                 }
 
                 override fun onQueryTextChange(p0: String?): Boolean {
-                    lifecycleScope.launch {
-                        flowOf(p0).debounce(2000).collect { key ->
-                            key?.let { viewModel.search(it) }
-                        }
-                    }
+                    offer(p0)
                     return false
                 }
 
-            })
+            }
+            setOnQueryTextListener(listener)
+            awaitClose()
         }
     }
 
