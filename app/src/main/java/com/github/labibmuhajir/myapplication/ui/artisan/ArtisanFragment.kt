@@ -73,7 +73,7 @@ class ArtisanFragment : Fragment() {
 
                 override fun onQueryTextChange(p0: String?): Boolean {
                     offer(p0)
-                    return true
+                    return false
                 }
 
             }
